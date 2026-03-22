@@ -123,12 +123,28 @@ const LANGUAGES = ['English', 'Thai', 'Karen', 'Burmese'];
 
 // Logo Component
 const Logo = ({ className = "w-12 h-12" }: { className?: string }) => (
-  <div className={cn("relative flex items-center justify-center", className)}>
-    <div className="absolute inset-0 bg-brand/5 rounded-xl rotate-6" />
-    <div className="absolute inset-0 bg-brand/10 rounded-xl -rotate-3" />
-    <div className="relative w-full h-full bg-white border-2 border-brand rounded-xl flex items-center justify-center text-brand shadow-sm">
-      <Sparkles className="w-6 h-6" fill="currentColor" />
-    </div>
+  <div className={cn("flex items-center justify-center", className)}>
+    <svg 
+      viewBox="0 0 100 100" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      className="w-full h-full text-brand"
+    >
+      {/* Lightbulb rays - 5 rays as seen in the image */}
+      <rect x="47.5" y="8" width="5" height="12" rx="2.5" fill="currentColor" />
+      <rect x="25" y="18" width="5" height="12" rx="2.5" transform="rotate(-45 25 18)" fill="currentColor" />
+      <rect x="70" y="18" width="5" height="12" rx="2.5" transform="rotate(45 70 18)" fill="currentColor" />
+      <rect x="12" y="45" width="12" height="5" rx="2.5" fill="currentColor" />
+      <rect x="76" y="45" width="12" height="5" rx="2.5" fill="currentColor" />
+      
+      {/* Lightbulb body */}
+      <path d="M50 18C41 18 33 26 33 36C33 42 36 47 41 50V56C41 57.1 41.9 58 43 58H57C58.1 58 59 57.1 59 56V50C64 47 67 42 67 36C67 26 59 18 50 18Z" fill="currentColor" />
+      <path d="M45 60C45 62.2 47.2 64 50 64C52.8 64 55 62.2 55 60H45Z" fill="currentColor" />
+
+      {/* Book - Two thick curved strokes as seen in the image */}
+      <path d="M15 62C15 62 35 57 50 67C65 57 85 62 85 62V72C85 72 65 67 50 77C35 67 15 72 15 72V62Z" fill="currentColor" />
+      <path d="M10 72C10 72 35 67 50 77C65 67 90 72 90 72V82C90 82 65 77 50 87C35 77 10 82 10 82V72Z" fill="currentColor" />
+    </svg>
   </div>
 );
 
