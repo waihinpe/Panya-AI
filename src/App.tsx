@@ -685,17 +685,16 @@ export default function App() {
         return Math.round((widthMm / mmToInch) * dpi);
       };
 
-      // Wait for rendering
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for rendering - reduced from 500ms for faster generation
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       const opt = {
         margin: 0,
         filename: `${result.title.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
+        image: { type: 'jpeg' as const, quality: 0.95 }, // Slightly reduced quality for speed
         html2canvas: { 
-          scale: 2, 
+          scale: 1.5, // Reduced from 2 for significantly faster rendering
           useCORS: true, 
-          letterRendering: true,
           logging: false,
           windowWidth: getWindowWidth()
         },
@@ -704,7 +703,7 @@ export default function App() {
           format: paperSize, 
           orientation: pdfOptions.orientation as 'portrait' | 'landscape',
           compress: true,
-          precision: 16
+          precision: 2 // Reduced from 16 for faster processing
         },
         pagebreak: { mode: ['avoid-all' as const, 'css' as const, 'legacy' as const] }
       };
@@ -835,12 +834,15 @@ export default function App() {
         </div>
       `;
 
+      // Wait for rendering - reduced wait time for faster generation
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const opt = {
         margin: 0,
         filename: `Draft_${formData.topic.replace(/\s+/g, '_') || 'Material'}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, windowWidth: 800 },
-        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+        image: { type: 'jpeg' as const, quality: 0.95 },
+        html2canvas: { scale: 1.5, useCORS: true, windowWidth: 800 },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const, compress: true, precision: 2 }
       };
 
       await html2pdf().set(opt).from(element).save();

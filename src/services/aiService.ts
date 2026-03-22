@@ -2,7 +2,10 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { InputData, OutputData, GroundingSource } from "../types";
 
 const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY || "";
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please ensure GEMINI_API_KEY is set in your environment variables.");
+  }
   return new GoogleGenAI({ apiKey });
 };
 
