@@ -2,9 +2,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { InputData, OutputData, GroundingSource } from "../types";
 
 const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
-  if (!apiKey) {
-    throw new Error("Gemini API key is missing. Please ensure GEMINI_API_KEY is set in your environment variables.");
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "undefined" || apiKey === "MY_GEMINI_API_KEY") {
+    throw new Error("Gemini API key is missing. Please ensure GEMINI_API_KEY is set in your environment variables via the Secrets panel in AI Studio.");
   }
   return new GoogleGenAI({ apiKey });
 };
