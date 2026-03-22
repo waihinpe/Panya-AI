@@ -651,6 +651,12 @@ export default function App() {
             <span class="pdf-header-title">${result.title}</span>
             <span class="pdf-header-brand">Panya AI Assistant</span>
           </div>
+          <div class="pdf-metadata" style="margin-bottom: 20px; padding: 15px; background: ${theme.headerBg}; border-radius: ${theme.borderRadius}; font-size: 0.9em; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border: 1px solid #e2e8f0;">
+            <div><strong>Subject:</strong> ${result.subject}</div>
+            <div><strong>Topic:</strong> ${result.topic}</div>
+            <div><strong>Grade:</strong> ${result.grade_level}</div>
+            <div><strong>Languages:</strong> ${result.languages.join(', ')}</div>
+          </div>
           <div class="pdf-content">
             ${cleanHtml}
           </div>
@@ -731,6 +737,120 @@ export default function App() {
       if (tempElement) {
         document.body.removeChild(tempElement);
       }
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const handleDownloadInputPDF = async () => {
+    setIsGeneratingPDF(true);
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl z-[100] flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300';
+    toast.innerHTML = `
+      <svg class="w-5 h-5 animate-spin text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+        <path d="M12 2a10 10 0 0 1 10 10"></path>
+      </svg>
+      <span class="text-sm font-semibold">Preparing draft PDF...</span>
+    `;
+    document.body.appendChild(toast);
+
+    try {
+      await document.fonts.ready;
+      const element = document.createElement('div');
+      element.style.position = 'fixed';
+      element.style.left = '-9999px';
+      element.style.top = '0';
+      element.style.width = '210mm';
+      element.className = 'pdf-export-container';
+      document.body.appendChild(element);
+
+      const theme = PDF_TEMPLATES[pdfOptions.theme as keyof typeof PDF_TEMPLATES] || PDF_TEMPLATES.modern;
+      const styles = `
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lora:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+          .pdf-export-container {
+            font-family: ${theme.fontFamily};
+            color: ${theme.textColor};
+            line-height: 1.6;
+            padding: 0;
+            background: ${theme.backgroundColor};
+            width: 100%;
+          }
+          .pdf-page { padding: 20mm; position: relative; background: ${theme.backgroundColor}; }
+          .pdf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid ${theme.primaryColor}; }
+          .pdf-header-title { font-size: 10px; font-weight: 800; color: ${theme.textColor}; text-transform: uppercase; letter-spacing: 0.1em; }
+          .pdf-header-brand { font-size: 10px; font-weight: 800; color: ${theme.primaryColor}; text-transform: uppercase; letter-spacing: 0.1em; }
+          h1 { font-size: 2.4em; font-weight: 800; margin-bottom: 0.6em; color: ${theme.primaryColor}; }
+          .draft-section { margin-bottom: 20px; }
+          .draft-label { font-size: 10px; font-weight: 800; color: ${theme.accentColor}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+          .draft-value { font-size: 14px; color: ${theme.textColor}; background: ${theme.headerBg}; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        </style>
+      `;
+
+      element.innerHTML = `
+        ${styles}
+        <div class="pdf-page">
+          <div class="pdf-header">
+            <span class="pdf-header-title">Material Draft</span>
+            <span class="pdf-header-brand">Panya AI Assistant</span>
+          </div>
+          <h1>${formData.topic || 'Untitled Topic'}</h1>
+          <div class="draft-section">
+            <div class="draft-label">Subject</div>
+            <div class="draft-value">${formData.subject || 'Not specified'}</div>
+          </div>
+          <div class="draft-section">
+            <div class="draft-label">Grade Level</div>
+            <div class="draft-value">${formData.grade_level || 'Not specified'}</div>
+          </div>
+          <div class="draft-section">
+            <div class="draft-label">Languages</div>
+            <div class="draft-value">${formData.languages.join(', ')}</div>
+          </div>
+          <div class="draft-section">
+            <div class="draft-label">Learning Objectives</div>
+            <div class="draft-value">${formData.learning_objectives || 'Not specified'}</div>
+          </div>
+          ${formData.adaptations ? `
+            <div class="draft-section">
+              <div class="draft-label">Inclusion Needs</div>
+              <div class="draft-value">${formData.adaptations}</div>
+            </div>
+          ` : ''}
+          ${formData.sensitive_topics ? `
+            <div class="draft-section">
+              <div class="draft-label">Sensitive Topics</div>
+              <div class="draft-value">${formData.sensitive_topics}</div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      const opt = {
+        margin: 0,
+        filename: `Draft_${formData.topic.replace(/\s+/g, '_') || 'Material'}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, windowWidth: 800 },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+      toast.innerHTML = `
+        <svg class="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span class="text-sm font-semibold">Draft exported!</span>
+      `;
+      setTimeout(() => {
+        toast.classList.add('animate-out', 'fade-out', 'slide-out-to-bottom-4');
+        setTimeout(() => document.body.removeChild(toast), 300);
+      }, 2000);
+    } catch (err) {
+      console.error('Draft PDF Error:', err);
+      if (toast.parentNode) document.body.removeChild(toast);
+    } finally {
+      const tempElement = document.querySelector('.pdf-export-container');
+      if (tempElement) document.body.removeChild(tempElement);
       setIsGeneratingPDF(false);
     }
   };
@@ -844,22 +964,34 @@ export default function App() {
           <div className="lg:col-span-4">
             <div className="sticky top-32">
               <div className="coursera-card p-6 sm:p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-brand/10 rounded-lg">
-                      <Settings2 className="w-5 h-5 text-brand" />
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-brand/10 rounded-lg">
+                        <Settings2 className="w-5 h-5 text-brand" />
+                      </div>
+                      <h2 className="text-lg font-bold">Configuration</h2>
                     </div>
-                    <h2 className="text-lg font-bold">Configuration</h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDownloadInputPDF}
+                        disabled={isGeneratingPDF}
+                        className="text-[10px] font-bold text-slate-400 hover:text-brand uppercase tracking-widest transition-colors flex items-center gap-1"
+                        title="Export input draft to PDF"
+                      >
+                        <Download className="w-3 h-3" />
+                        Draft
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearForm}
+                        className="text-[10px] font-bold text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" />
+                        Reset
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={clearForm}
-                    className="text-[10px] font-bold text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-1"
-                  >
-                    <X className="w-3 h-3" />
-                    Reset
-                  </button>
-                </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Mode Selection */}
