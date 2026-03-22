@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Plus,
   X,
+  Share2,
   CheckCircle2,
   Sparkles,
   Lightbulb,
@@ -193,25 +194,7 @@ export default function App() {
   });
 
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
 
-  // Check for API key on mount
-  React.useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio?.hasSelectedApiKey) {
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
-  };
   const [showExamples, setShowExamples] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -256,6 +239,28 @@ export default function App() {
       setError("Failed to generate speech. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!result) return;
+    
+    const shareData = {
+      title: result.title,
+      text: `Check out this inclusive educational material: ${result.title}`,
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          copyToClipboard(window.location.href);
+        }
+      }
+    } else {
+      copyToClipboard(window.location.href);
     }
   };
 
@@ -680,6 +685,9 @@ export default function App() {
         return Math.round((widthMm / mmToInch) * dpi);
       };
 
+      // Wait for rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const opt = {
         margin: 0,
         filename: `${result.title.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`,
@@ -695,22 +703,23 @@ export default function App() {
           unit: 'mm' as const, 
           format: paperSize, 
           orientation: pdfOptions.orientation as 'portrait' | 'landscape',
-          compress: true
+          compress: true,
+          precision: 16
         },
         pagebreak: { mode: ['avoid-all' as const, 'css' as const, 'legacy' as const] }
       };
       
-      // Generate PDF
+      // Generate PDF with page numbers
       const worker = html2pdf().set(opt).from(element).toPdf().get('pdf').then((pdf: any) => {
         const totalPages = pdf.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
           pdf.setPage(i);
           pdf.setFontSize(9);
-          pdf.setTextColor(100);
+          pdf.setTextColor(150);
           const pageText = `Page ${i} of ${totalPages}`;
-          const x = pdf.internal.pageSize.getWidth() - 30;
+          const x = pdf.internal.pageSize.getWidth() / 2;
           const y = pdf.internal.pageSize.getHeight() - 10;
-          pdf.text(pageText, x, y);
+          pdf.text(pageText, x, y, { align: 'center' });
         }
       });
       
@@ -929,18 +938,6 @@ export default function App() {
             </div>
           </div>
           <nav className="flex items-center gap-4 sm:gap-6">
-            <button
-              onClick={handleSelectKey}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all rounded-xl border-2",
-                hasApiKey 
-                  ? "bg-emerald-50 border-emerald-100 text-emerald-600" 
-                  : "bg-amber-50 border-amber-100 text-amber-600 hover:bg-amber-100"
-              )}
-            >
-              <Zap className={cn("w-4 h-4", hasApiKey && "fill-current")} />
-              <span className="hidden sm:inline">{hasApiKey ? "Key Active" : "Set API Key"}</span>
-            </button>
             <button
               onClick={() => setShowExamples(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 hover:text-brand transition-colors"
@@ -1261,40 +1258,78 @@ export default function App() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="space-y-8"
+                  className="space-y-8 pb-20"
                 >
-                  {/* Result Header */}
-                  <div className="coursera-card p-6 sm:p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-4">
-                          <span className="px-3 py-1 bg-brand/5 text-brand text-[10px] font-bold uppercase rounded-full tracking-widest border border-brand/10">
+                  {/* Result Header - Improved */}
+                  <div className="bg-white rounded-[32px] p-8 sm:p-12 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full -mr-32 -mt-32 blur-3xl opacity-50" />
+                    
+                    <div className="relative flex flex-col md:flex-row md:items-start justify-between gap-8">
+                      <div className="flex-1 space-y-6">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="px-4 py-1.5 bg-brand text-white text-[10px] font-bold uppercase rounded-full tracking-widest shadow-lg shadow-brand/20">
                             {result.mode.replace('_', ' ')}
                           </span>
+                          <span className="px-4 py-1.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded-full tracking-widest border border-slate-200">
+                            {result.grade_level}
+                          </span>
                           <span className="text-slate-300">•</span>
-                          <span className="text-slate-500 text-sm font-semibold">{result.grade_level}</span>
+                          <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                            {result.subject}
+                          </span>
                         </div>
-                        <h2 className="text-3xl font-bold text-slate-900 font-display leading-tight">{result.title}</h2>
+                        
+                        <h2 className="text-4xl sm:text-5xl font-bold text-slate-900 font-display leading-[1.1] tracking-tight max-w-2xl">
+                          {result.title}
+                        </h2>
+
+                        <div className="flex items-center gap-6 pt-4 border-t border-slate-100">
+                          <div className="flex -space-x-2">
+                            {result.languages.map((lang, i) => (
+                              <div key={lang} className={cn(
+                                "w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-sm",
+                                i === 0 ? "bg-indigo-500" : i === 1 ? "bg-emerald-500" : i === 2 ? "bg-amber-500" : "bg-rose-500"
+                              )}>
+                                {lang[0]}
+                              </div>
+                            ))}
+                          </div>
+                          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                            {result.languages.length} {result.languages.length === 1 ? 'Language' : 'Languages'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+
+                      <div className="flex flex-wrap items-center gap-3 shrink-0">
                         <button
                           onClick={() => copyToClipboard(result.printable_markdown)}
-                          className="coursera-btn-secondary p-3"
+                          className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-brand hover:text-white hover:border-brand transition-all duration-300 group shadow-sm"
                           title="Copy Markdown"
                         >
-                          {copied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+                          {copied ? <Check className="w-5 h-5 text-emerald-500 group-hover:text-white" /> : <Copy className="w-5 h-5" />}
                         </button>
+                        
+                        <button
+                          onClick={handleShare}
+                          className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 hover:bg-brand hover:text-white hover:border-brand transition-all duration-300 shadow-sm"
+                          title="Share"
+                        >
+                          <Share2 className="w-5 h-5" />
+                        </button>
+
                         <div className="relative">
                           <button
                             onClick={() => setPdfOptions(prev => ({ ...prev, showOptions: !prev.showOptions }))}
                             className={cn(
-                              "coursera-btn-secondary py-3 px-5",
-                              pdfOptions.showOptions && "bg-slate-100"
+                              "h-12 px-6 rounded-2xl flex items-center gap-3 font-bold text-sm transition-all duration-300 shadow-sm",
+                              pdfOptions.showOptions 
+                                ? "bg-brand text-white border-brand" 
+                                : "bg-slate-900 text-white border-slate-900 hover:bg-slate-800"
                             )}
                             disabled={isGeneratingPDF}
                           >
-                            {isGeneratingPDF ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                            <span className="hidden sm:inline ml-2">{isGeneratingPDF ? 'Preparing...' : 'PDF'}</span>
+                            {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                            <span>{isGeneratingPDF ? 'Preparing...' : 'Export PDF'}</span>
                           </button>
 
                           <AnimatePresence>
@@ -1303,20 +1338,23 @@ export default function App() {
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 z-20"
+                                className="absolute right-0 top-full mt-4 w-80 bg-white rounded-[32px] shadow-2xl border border-slate-100 p-8 z-30"
                               >
-                                <div className="space-y-5">
+                                <div className="space-y-6">
                                   <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-bold text-slate-900">PDF Settings</h4>
-                                    <button onClick={() => setPdfOptions(prev => ({ ...prev, showOptions: false }))}>
-                                      <X className="w-4 h-4 text-slate-400 hover:text-slate-600" />
+                                    <h4 className="text-lg font-bold text-slate-900 font-display">PDF Settings</h4>
+                                    <button 
+                                      onClick={() => setPdfOptions(prev => ({ ...prev, showOptions: false }))}
+                                      className="p-2 hover:bg-slate-50 rounded-full transition-colors"
+                                    >
+                                      <X className="w-5 h-5 text-slate-400" />
                                     </button>
                                   </div>
 
-                                  <div className="space-y-4">
+                                  <div className="space-y-6">
                                     <div>
-                                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Theme</label>
-                                      <div className="grid grid-cols-3 gap-1">
+                                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Visual Theme</label>
+                                      <div className="grid grid-cols-3 gap-2">
                                         {[
                                           { label: 'Modern', value: 'modern' },
                                           { label: 'Classic', value: 'classic' },
@@ -1326,8 +1364,10 @@ export default function App() {
                                             key={t.value}
                                             onClick={() => setPdfOptions(prev => ({ ...prev, theme: t.value }))}
                                             className={cn(
-                                              "py-1.5 rounded-lg text-[9px] font-bold border transition-all",
-                                              pdfOptions.theme === t.value ? "bg-brand/5 border-brand/30 text-brand" : "border-slate-100 text-slate-500 hover:border-slate-200"
+                                              "py-2 rounded-xl text-[10px] font-bold border-2 transition-all",
+                                              pdfOptions.theme === t.value 
+                                                ? "bg-brand/5 border-brand text-brand" 
+                                                : "bg-white border-slate-100 text-slate-500 hover:border-slate-200"
                                             )}
                                           >
                                             {t.label}
@@ -1337,35 +1377,37 @@ export default function App() {
                                     </div>
 
                                     <div>
-                                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Typography</label>
-                                      <div className="grid grid-cols-3 gap-1">
+                                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Typography</label>
+                                      <div className="grid grid-cols-3 gap-2">
                                         {[
-                                          { label: 'Sans', value: 'sans-serif', icon: <TypeIcon className="w-3 h-3" /> },
-                                          { label: 'Serif', value: 'serif', icon: <Book className="w-3 h-3" /> },
-                                          { label: 'Mono', value: 'monospace', icon: <Settings2 className="w-3 h-3" /> }
+                                          { label: 'Sans', value: 'sans-serif', icon: <TypeIcon className="w-4 h-4" /> },
+                                          { label: 'Serif', value: 'serif', icon: <Book className="w-4 h-4" /> },
+                                          { label: 'Mono', value: 'monospace', icon: <Settings2 className="w-4 h-4" /> }
                                         ].map(f => (
                                           <button
                                             key={f.value}
                                             onClick={() => setPdfOptions(prev => ({ ...prev, fontFamily: f.value }))}
                                             className={cn(
-                                              "flex flex-col items-center gap-1 p-2 rounded-xl border transition-all",
-                                              pdfOptions.fontFamily === f.value ? "bg-brand/5 border-brand/30 text-brand shadow-sm" : "border-slate-100 text-slate-500 hover:border-slate-200"
+                                              "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all",
+                                              pdfOptions.fontFamily === f.value 
+                                                ? "bg-brand/5 border-brand text-brand shadow-sm" 
+                                                : "bg-white border-slate-100 text-slate-500 hover:border-slate-200"
                                             )}
                                           >
                                             {f.icon}
-                                            <span className="text-[9px] font-bold uppercase">{f.label}</span>
+                                            <span className="text-[10px] font-bold uppercase">{f.label}</span>
                                           </button>
                                         ))}
                                       </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-2 gap-4">
                                       <div>
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Font Size</label>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Size</label>
                                         <select 
                                           value={pdfOptions.fontSize}
                                           onChange={(e) => setPdfOptions(prev => ({ ...prev, fontSize: e.target.value }))}
-                                          className="w-full bg-slate-50 border border-slate-100 rounded-lg py-1.5 px-2 text-xs font-semibold outline-none focus:border-brand/30"
+                                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl py-2 px-3 text-xs font-bold outline-none focus:border-brand/30"
                                         >
                                           <option value="10pt">Small</option>
                                           <option value="12pt">Medium</option>
@@ -1374,86 +1416,18 @@ export default function App() {
                                         </select>
                                       </div>
                                       <div>
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Margins</label>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Margins</label>
                                         <select 
                                           value={pdfOptions.margin}
                                           onChange={(e) => setPdfOptions(prev => ({ ...prev, margin: e.target.value }))}
-                                          className="w-full bg-slate-50 border border-slate-100 rounded-lg py-1.5 px-2 text-xs font-semibold outline-none focus:border-brand/30"
+                                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl py-2 px-3 text-xs font-bold outline-none focus:border-brand/30"
                                         >
                                           <option value="0mm">None</option>
                                           <option value="10mm">Narrow</option>
                                           <option value="20mm">Normal</option>
                                           <option value="30mm">Wide</option>
-                                          <option value="40mm">Extra Wide</option>
                                         </select>
                                       </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div>
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Layout</label>
-                                        <div className="grid grid-cols-3 gap-1">
-                                          {[
-                                            { label: 'A4', value: 'a4' },
-                                            { label: 'LTR', value: 'letter' },
-                                            { label: 'LGL', value: 'legal' }
-                                          ].map(s => (
-                                            <button
-                                              key={s.value}
-                                              onClick={() => setPdfOptions(prev => ({ ...prev, paperSize: s.value }))}
-                                              className={cn(
-                                                "py-1.5 rounded-lg text-[9px] font-bold border transition-all",
-                                                pdfOptions.paperSize === s.value ? "bg-brand/5 border-brand/30 text-brand" : "border-slate-100 text-slate-500 hover:border-slate-200"
-                                              )}
-                                            >
-                                              {s.label}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Orientation</label>
-                                        <div className="grid grid-cols-2 gap-1">
-                                          {[
-                                            { label: 'P', value: 'portrait' },
-                                            { label: 'L', value: 'landscape' }
-                                          ].map(o => (
-                                            <button
-                                              key={o.value}
-                                              onClick={() => setPdfOptions(prev => ({ ...prev, orientation: o.value }))}
-                                              className={cn(
-                                                "py-1.5 rounded-lg text-[9px] font-bold border transition-all",
-                                                pdfOptions.orientation === o.value ? "bg-brand/5 border-brand/30 text-brand" : "border-slate-100 text-slate-500 hover:border-slate-200"
-                                              )}
-                                            >
-                                              {o.label}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <button
-                                        onClick={() => setPdfOptions(prev => ({ ...prev, includeHeader: !prev.includeHeader }))}
-                                        className={cn(
-                                          "flex items-center justify-between p-2 rounded-lg border text-[10px] font-bold transition-all",
-                                          pdfOptions.includeHeader ? "bg-brand/5 border-brand/30 text-brand" : "border-slate-100 text-slate-400"
-                                        )}
-                                      >
-                                        Header
-                                        {pdfOptions.includeHeader ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                                      </button>
-                                      <button
-                                        onClick={() => setPdfOptions(prev => ({ ...prev, includeFooter: !prev.includeFooter }))}
-                                        className={cn(
-                                          "flex items-center justify-between p-2 rounded-lg border text-[10px] font-bold transition-all",
-                                          pdfOptions.includeFooter ? "bg-brand/5 border-brand/30 text-brand" : "border-slate-100 text-slate-400"
-                                        )}
-                                      >
-                                        Footer
-                                        {pdfOptions.includeFooter ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                                      </button>
                                     </div>
                                   </div>
 
@@ -1462,9 +1436,9 @@ export default function App() {
                                       handleDownloadPDF();
                                       setPdfOptions(prev => ({ ...prev, showOptions: false }));
                                     }}
-                                    className="coursera-btn-primary w-full py-3 text-xs flex items-center justify-center gap-2"
+                                    className="coursera-btn-primary w-full py-4 text-sm flex items-center justify-center gap-3 shadow-lg shadow-brand/20"
                                   >
-                                    <Download className="w-4 h-4" />
+                                    <Download className="w-5 h-5" />
                                     Generate PDF
                                   </button>
                                 </div>
@@ -1472,9 +1446,10 @@ export default function App() {
                             )}
                           </AnimatePresence>
                         </div>
+                        
                         <button
                           onClick={handlePrint}
-                          className="coursera-btn-primary py-3 px-5"
+                          className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-900 flex items-center justify-center text-white hover:bg-slate-800 transition-all duration-300 shadow-sm"
                           title="Print Material"
                         >
                           <Printer className="w-5 h-5" />
@@ -1509,51 +1484,56 @@ export default function App() {
                     </motion.div>
                   )}
 
-                  {/* Metadata Bento Grid */}
+                  {/* Metadata Bento Grid - Improved */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="coursera-card p-6 bg-indigo-50/30 border-indigo-100">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                          <Languages className="w-4 h-4" />
+                    <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-lg shadow-slate-200/20 hover:shadow-xl transition-shadow duration-300 group">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform duration-300">
+                          <Languages className="w-6 h-6" />
                         </div>
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-900">Languages</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400">Languages</h4>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {result.languages.map(lang => (
-                          <span key={lang} className="px-2 py-1 bg-white border border-indigo-100 text-indigo-700 text-[10px] font-bold rounded-md">
+                          <span key={lang} className="px-4 py-2 bg-indigo-50/50 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-100">
                             {lang}
                           </span>
                         ))}
                       </div>
                     </div>
 
-                    <div className="coursera-card p-6 bg-emerald-50/30 border-emerald-100">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600">
-                          <Accessibility className="w-4 h-4" />
+                    <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-lg shadow-slate-200/20 hover:shadow-xl transition-shadow duration-300 group">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform duration-300">
+                          <Accessibility className="w-6 h-6" />
                         </div>
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-900">Accessibility</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400">Accessibility</h4>
                       </div>
-                      <div className="space-y-2">
-                        {result.accessibility?.features.slice(0, 2).map((feat, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs font-medium text-emerald-800">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                      <div className="space-y-3">
+                        {result.accessibility?.features.slice(0, 3).map((feat, i) => (
+                          <div key={i} className="flex items-start gap-3 text-xs font-bold text-slate-600">
+                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                             {feat.feature}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="coursera-card p-6 bg-amber-50/30 border-amber-100">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
-                          <Lightbulb className="w-4 h-4" />
+                    <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-lg shadow-slate-200/20 hover:shadow-xl transition-shadow duration-300 group">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform duration-300">
+                          <Lightbulb className="w-6 h-6" />
                         </div>
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-amber-900">Teacher Tip</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400">Teacher Tips</h4>
                       </div>
-                      <p className="text-xs text-amber-800 font-medium leading-relaxed italic">
-                        "{result.teacher_tips[0]}"
-                      </p>
+                      <div className="space-y-3">
+                        {result.teacher_tips.slice(0, 2).map((tip, i) => (
+                          <div key={i} className="flex items-start gap-3 text-xs font-bold text-slate-600 italic">
+                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                            "{tip}"
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -1846,32 +1826,36 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Generated Content */}
-                  <div className="coursera-card overflow-hidden">
-                    <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400">
-                          <FileText className="w-4 h-4" />
-                        </div>
-                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Generated Material</h3>
-                      </div>
-                    </div>
-                    <div className="p-8 sm:p-12 space-y-16">
+                  {/* Generated Content - Editorial Style */}
+                  <div className="bg-white rounded-[40px] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-brand" />
+                    
+                    <div className="p-8 sm:p-16 space-y-24">
                       {/* Primary Language */}
-                      <div>
-                        <div className="flex items-center gap-3 mb-8">
-                          <div className="px-3 py-1 bg-brand/5 text-brand text-[10px] font-bold uppercase rounded-full border border-brand/10">
+                      <div className="relative">
+                        <div className="flex items-center gap-4 mb-16">
+                          <div className="h-px flex-1 bg-slate-100" />
+                          <span className="px-6 py-2 bg-brand/5 text-brand text-[10px] font-bold uppercase rounded-full border border-brand/10 tracking-[0.2em]">
                             Primary: {result.languages[0]}
-                          </div>
+                          </span>
+                          <div className="h-px flex-1 bg-slate-100" />
                         </div>
-                        <div className="space-y-12">
+
+                        <div className="space-y-20">
                           {result.content.primary_language.sections.map((section, i) => (
-                            <div key={i} className="group">
-                              <h5 className="text-2xl font-bold text-slate-900 mb-4 font-display group-hover:text-brand transition-colors">
-                                {section.heading}
-                              </h5>
-                              <div className="text-slate-600 text-base leading-relaxed whitespace-pre-wrap font-medium">
-                                {section.body}
+                            <div key={i} className="max-w-3xl mx-auto group">
+                              <div className="flex items-start gap-8">
+                                <span className="hidden md:block text-6xl font-display font-black text-slate-100 group-hover:text-brand/10 transition-colors select-none">
+                                  {String(i + 1).padStart(2, '0')}
+                                </span>
+                                <div className="flex-1">
+                                  <h3 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-8 font-display tracking-tight group-hover:text-brand transition-colors">
+                                    {section.heading}
+                                  </h3>
+                                  <div className="prose prose-slate prose-lg max-w-none prose-p:leading-relaxed prose-p:text-slate-600 prose-strong:text-slate-900 prose-p:font-medium">
+                                    <Markdown>{section.body}</Markdown>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -1880,26 +1864,47 @@ export default function App() {
 
                       {/* Mirrored Languages */}
                       {result.content.mirrored_languages.map((langContent, i) => (
-                        <div key={i} className="pt-16 border-t border-slate-100">
-                          <div className="flex items-center gap-3 mb-8">
-                            <div className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase rounded-full border border-indigo-100">
+                        <div key={i} className="relative pt-24 border-t border-slate-100">
+                          <div className="flex items-center gap-4 mb-16">
+                            <div className="h-px flex-1 bg-slate-100" />
+                            <span className="px-6 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase rounded-full border border-indigo-100 tracking-[0.2em]">
                               Translation: {langContent.language}
-                            </div>
+                            </span>
+                            <div className="h-px flex-1 bg-slate-100" />
                           </div>
-                          <div className="space-y-12">
+
+                          <div className="space-y-20">
                             {langContent.sections.map((section, j) => (
-                              <div key={j} className="group">
-                                <h5 className="text-2xl font-bold text-slate-900 mb-4 font-display group-hover:text-indigo-600 transition-colors">
-                                  {section.heading}
-                                </h5>
-                                <div className="text-slate-600 text-base leading-relaxed whitespace-pre-wrap font-medium">
-                                  {section.body}
+                              <div key={j} className="max-w-3xl mx-auto group">
+                                <div className="flex items-start gap-8">
+                                  <span className="hidden md:block text-6xl font-display font-black text-slate-100 group-hover:text-indigo-100/10 transition-colors select-none">
+                                    {String(j + 1).padStart(2, '0')}
+                                  </span>
+                                  <div className="flex-1">
+                                    <h3 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-8 font-display tracking-tight group-hover:text-indigo-600 transition-colors">
+                                      {section.heading}
+                                    </h3>
+                                    <div className="prose prose-slate prose-lg max-w-none prose-p:leading-relaxed prose-p:text-slate-600 prose-strong:text-slate-900 prose-p:font-medium">
+                                      <Markdown>{section.body}</Markdown>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             ))}
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Footer Branding */}
+                    <div className="bg-slate-50 border-t border-slate-100 p-12 flex flex-col items-center text-center gap-6">
+                      <div className="w-16 h-16 bg-white rounded-3xl border border-slate-200 flex items-center justify-center text-brand shadow-xl shadow-slate-200/50">
+                        <Sparkles className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Handcrafted by Panya AI</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Inclusive Education Excellence</p>
+                      </div>
                     </div>
                   </div>
 
