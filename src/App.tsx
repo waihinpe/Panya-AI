@@ -61,6 +61,15 @@ import {
 } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
+declare global {
+  interface Window {
+    aistudio?: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -184,6 +193,25 @@ export default function App() {
   });
 
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  // Check for API key on mount
+  React.useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio?.hasSelectedApiKey) {
+        const selected = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(selected);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio?.openSelectKey) {
+      await window.aistudio.openSelectKey();
+      setHasApiKey(true);
+    }
+  };
   const [showExamples, setShowExamples] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -411,6 +439,18 @@ export default function App() {
     if (!result) return;
     setIsGeneratingPDF(true);
     
+    // Create a toast-like notification for PDF preparation
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl z-[100] flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300';
+    toast.innerHTML = `
+      <svg class="w-5 h-5 animate-spin text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+        <path d="M12 2a10 10 0 0 1 10 10"></path>
+      </svg>
+      <span class="text-sm font-semibold">Preparing high-quality PDF...</span>
+    `;
+    document.body.appendChild(toast);
+    
     try {
       const isLandscape = pdfOptions.orientation === 'landscape';
       const paperSize = pdfOptions.paperSize;
@@ -420,10 +460,10 @@ export default function App() {
       
       // Create a temporary container for PDF generation
       const element = document.createElement('div');
-      element.style.position = 'absolute';
+      element.style.position = 'fixed';
       element.style.left = '-9999px';
       element.style.top = '0';
-      element.style.width = isLandscape ? '297mm' : '210mm'; // Standard A4 widths
+      element.style.width = isLandscape ? '297mm' : '210mm';
       element.className = 'pdf-export-container';
       document.body.appendChild(element);
       
@@ -440,12 +480,14 @@ export default function App() {
             line-height: 1.6;
             padding: 0;
             background: ${theme.backgroundColor};
+            width: 100%;
           }
           
           .pdf-page {
             padding: ${pdfOptions.margin};
             position: relative;
             background: ${theme.backgroundColor};
+            min-height: ${isLandscape ? '210mm' : '297mm'};
           }
           
           .pdf-header {
@@ -652,8 +694,8 @@ export default function App() {
         pagebreak: { mode: ['avoid-all' as const, 'css' as const, 'legacy' as const] }
       };
       
-      // Generate PDF with page numbers
-      const worker = (html2pdf() as any).set(opt).from(element).toPdf().get('pdf').then((pdf: any) => {
+      // Generate PDF
+      const worker = html2pdf().set(opt).from(element).toPdf().get('pdf').then((pdf: any) => {
         const totalPages = pdf.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
           pdf.setPage(i);
@@ -667,9 +709,23 @@ export default function App() {
       });
       
       await (worker as any).save();
+      
+      // Success feedback
+      toast.innerHTML = `
+        <svg class="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span class="text-sm font-semibold">Download started!</span>
+      `;
+      setTimeout(() => {
+        toast.classList.add('animate-out', 'fade-out', 'slide-out-to-bottom-4');
+        setTimeout(() => document.body.removeChild(toast), 300);
+      }, 2000);
+
     } catch (err: any) {
       console.error('PDF Generation Error:', err);
       setError('Failed to generate high-quality PDF. Please try using the "Print" option instead.');
+      if (toast.parentNode) document.body.removeChild(toast);
     } finally {
       const tempElement = document.querySelector('.pdf-export-container');
       if (tempElement) {
@@ -753,6 +809,18 @@ export default function App() {
             </div>
           </div>
           <nav className="flex items-center gap-4 sm:gap-6">
+            <button
+              onClick={handleSelectKey}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all rounded-xl border-2",
+                hasApiKey 
+                  ? "bg-emerald-50 border-emerald-100 text-emerald-600" 
+                  : "bg-amber-50 border-amber-100 text-amber-600 hover:bg-amber-100"
+              )}
+            >
+              <Zap className={cn("w-4 h-4", hasApiKey && "fill-current")} />
+              <span className="hidden sm:inline">{hasApiKey ? "Key Active" : "Set API Key"}</span>
+            </button>
             <button
               onClick={() => setShowExamples(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 hover:text-brand transition-colors"

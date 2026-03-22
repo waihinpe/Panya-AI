@@ -1,7 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { InputData, OutputData, GroundingSource } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const getAI = () => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
+  return new GoogleGenAI({ apiKey });
+};
 
 const SYSTEM_INSTRUCTION = `You are Panya AI, an education assistant for teachers in rural and border schools with limited digital or AI skills. Your purpose is to quickly create inclusive, classroom-ready materials (lesson plans, worksheets, quizzes) and multilingual adaptations (Thai, Burmese, Karen, English) that reduce teacher workload and support diverse learners, including students with autism, Down syndrome, and learning difficulties. Avoid technical jargon and keep outputs simple to implement in low-tech classrooms.
 
@@ -186,6 +189,7 @@ const RESPONSE_SCHEMA = {
 };
 
 export async function generateSpeech(text: string): Promise<string> {
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
     contents: [{ parts: [{ text: `Say clearly: ${text}` }] }],
@@ -208,6 +212,7 @@ export async function generateSpeech(text: string): Promise<string> {
 }
 
 export async function generateEducationalMaterial(input: InputData): Promise<OutputData> {
+  const ai = getAI();
   const model = "gemini-3-flash-preview";
   const prompt = `Generate educational material based on the following input: ${JSON.stringify(input)}`;
 
