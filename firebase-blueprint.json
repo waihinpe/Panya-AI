@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "Feedback": {
+      "title": "Feedback",
+      "description": "User feedback on generated educational materials",
+      "type": "object",
+      "properties": {
+        "rating": {
+          "type": "number",
+          "description": "Rating from 1 to 5"
+        },
+        "comment": {
+          "type": "string",
+          "description": "Specific comments or suggestions"
+        },
+        "materialTitle": {
+          "type": "string",
+          "description": "Title of the material being rated"
+        },
+        "inputData": {
+          "type": "object",
+          "description": "The input parameters used to generate the material"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the feedback was submitted"
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who submitted feedback"
+        }
+      },
+      "required": ["rating", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/feedback/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Collection of user feedback"
+    }
+  }
+}

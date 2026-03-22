@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: feedback
+    // Fields:
+    //   - rating: number (required, 1-5)
+    //   - comment: string (optional)
+    //   - materialTitle: string (optional)
+    //   - inputData: map (optional)
+    //   - timestamp: timestamp (required)
+    //   - userId: string (optional)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "waihinpe123@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function isValidFeedback(data) {
+      return data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.timestamp is timestamp &&
+             (!('comment' in data) || (data.comment is string && data.comment.size() < 2000)) &&
+             (!('materialTitle' in data) || data.materialTitle is string) &&
+             (!('userId' in data) || data.userId == request.auth.uid);
+    }
+
+    match /feedback/{feedbackId} {
+      allow create: if isAuthenticated() && isValidFeedback(request.resource.data);
+      allow read: if isAdmin();
+    }
+  }
+}
