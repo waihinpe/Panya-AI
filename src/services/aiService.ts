@@ -11,83 +11,52 @@ export async function generateSpeech(text: string): Promise<string> {
 }
 
 export async function generateEducationalMaterial(input: InputData): Promise<OutputData> {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const model = "gemini-3.1-pro-preview";
   
-  const prompt = `
-    You are an expert inclusive education specialist and curriculum designer. 
-    Create a highly detailed, comprehensive ${input.mode.replace('_', ' ')} for the following:
-    
+    const prompt = `
+    You are an expert inclusive education specialist. Create a detailed ${input.mode.replace('_', ' ')} for:
     Topic: ${input.topic}
     Subject: ${input.subject}
-    Grade Level: ${input.grade_level}
-    Target Languages: ${input.languages.join(', ')}
-    Learning Objectives: ${input.learning_objectives}
-    Time Available: ${input.time_available_minutes} minutes
-    Constraints: ${input.constraints}
-    Adaptations Needed: ${input.adaptations || 'None specified'}
-    Sensitive Topics to Handle: ${input.sensitive_topics || 'None specified'}
+    Grade: ${input.grade_level}
+    Languages: ${input.languages.join(', ')}
+    Objectives: ${input.learning_objectives}
 
-    CRITICAL REQUIREMENTS:
-    1. The content must be EXTENSIVE and detailed, aiming for approximately 2 full pages of printed material.
-    2. Provide a deep dive into the topic with multiple sections (Introduction, Background, Core Content, Examples, Activities, Assessment).
-    3. Ensure the language is inclusive and accessible for the target grade level.
-    4. For the mirrored languages (${input.languages.slice(1).join(', ')}), provide high-quality, accurate translations of the core content.
-    5. Include specific inclusion strategies for learners with diverse needs (e.g., Autism, Dyslexia, Visual Impairment).
-    6. Provide a comprehensive glossary of key terms with definitions and translations.
-    7. Include practical teacher tips for implementation in low-resource settings.
-    8. Generate a 'printable_markdown' version that is beautifully formatted for a 2-page PDF export. 
-       This markdown MUST include ALL the information generated above:
-       - A clear title and metadata section.
-       - The full content in the primary language.
-       - The full content in all mirrored languages.
-       - The Inclusion Strategies section.
-       - The Glossary section.
-       - The Teacher Tips section.
-       - Use clear headers (H1, H2, H3), bold text, and lists to make it look professional.
-       - Aim for a length that naturally fills about 2 pages (approx 1000-1500 words total).
+    Requirements:
+    1. Detailed content in primary and mirrored languages.
+    2. Inclusion strategies for diverse needs.
+    3. Comprehensive glossary.
+    4. Practical teacher tips.
+    5. A 'printable_markdown' field containing ALL the above formatted for a professional PDF.
+    
+    CONSTRAINTS:
+    - Total word count across all sections should be around 800-1000 words.
+    - Be concise but thorough.
+    - Ensure the JSON is valid and follows the schema exactly.
   `;
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          mode: { type: Type.STRING },
-          subject: { type: Type.STRING },
-          topic: { type: Type.STRING },
-          grade_level: { type: Type.STRING },
-          languages: { type: Type.ARRAY, items: { type: Type.STRING } },
-          content: {
-            type: Type.OBJECT,
-            properties: {
-              primary_language: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  sections: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        heading: { type: Type.STRING },
-                        body: { type: Type.STRING }
-                      },
-                      required: ["heading", "body"]
-                    }
-                  }
-                },
-                required: ["title", "sections"]
-              },
-              mirrored_languages: {
-                type: Type.ARRAY,
-                items: {
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        maxOutputTokens: 8192,
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            mode: { type: Type.STRING },
+            subject: { type: Type.STRING },
+            topic: { type: Type.STRING },
+            grade_level: { type: Type.STRING },
+            languages: { type: Type.ARRAY, items: { type: Type.STRING } },
+            content: {
+              type: Type.OBJECT,
+              properties: {
+                primary_language: {
                   type: Type.OBJECT,
                   properties: {
-                    language: { type: Type.STRING },
                     title: { type: Type.STRING },
                     sections: {
                       type: Type.ARRAY,
@@ -101,82 +70,115 @@ export async function generateEducationalMaterial(input: InputData): Promise<Out
                       }
                     }
                   },
-                  required: ["language", "title", "sections"]
+                  required: ["title", "sections"]
+                },
+                mirrored_languages: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      language: { type: Type.STRING },
+                      title: { type: Type.STRING },
+                      sections: {
+                        type: Type.ARRAY,
+                        items: {
+                          type: Type.OBJECT,
+                          properties: {
+                            heading: { type: Type.STRING },
+                            body: { type: Type.STRING }
+                          },
+                          required: ["heading", "body"]
+                        }
+                      }
+                    },
+                    required: ["language", "title", "sections"]
+                  }
+                }
+              },
+              required: ["primary_language", "mirrored_languages"]
+            },
+            inclusion_strategies: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  need: { type: Type.STRING },
+                  strategy: { type: Type.STRING }
+                },
+                required: ["need", "strategy"]
+              }
+            },
+            glossary: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  term: { type: Type.STRING },
+                  definition: { type: Type.STRING },
+                  translation: { type: Type.STRING }
+                },
+                required: ["term", "definition"]
+              }
+            },
+            accessibility: {
+              type: Type.OBJECT,
+              properties: {
+                alt_text_suggestions: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      element: { type: Type.STRING },
+                      alt_text: { type: Type.STRING }
+                    }
+                  }
+                },
+                tts_guidelines: { type: Type.ARRAY, items: { type: Type.STRING } },
+                features: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      feature: { type: Type.STRING },
+                      description: { type: Type.STRING }
+                    }
+                  }
                 }
               }
             },
-            required: ["primary_language", "mirrored_languages"]
-          },
-          inclusion_strategies: {
-            type: Type.ARRAY,
-            items: {
+            teacher_tips: { type: Type.ARRAY, items: { type: Type.STRING } },
+            printable_markdown: { type: Type.STRING },
+            self_check: {
               type: Type.OBJECT,
               properties: {
-                need: { type: Type.STRING },
-                strategy: { type: Type.STRING }
-              },
-              required: ["need", "strategy"]
-            }
-          },
-          glossary: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                term: { type: Type.STRING },
-                definition: { type: Type.STRING },
-                translation: { type: Type.STRING }
-              },
-              required: ["term", "definition"]
-            }
-          },
-          accessibility: {
-            type: Type.OBJECT,
-            properties: {
-              alt_text_suggestions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    element: { type: Type.STRING },
-                    alt_text: { type: Type.STRING }
-                  }
-                }
-              },
-              tts_guidelines: { type: Type.ARRAY, items: { type: Type.STRING } },
-              features: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    feature: { type: Type.STRING },
-                    description: { type: Type.STRING }
-                  }
-                }
+                met_schema: { type: Type.BOOLEAN },
+                met_inclusion: { type: Type.BOOLEAN },
+                met_multilingual: { type: Type.BOOLEAN },
+                notes: { type: Type.STRING }
               }
             }
           },
-          teacher_tips: { type: Type.ARRAY, items: { type: Type.STRING } },
-          printable_markdown: { type: Type.STRING },
-          self_check: {
-            type: Type.OBJECT,
-            properties: {
-              met_schema: { type: Type.BOOLEAN },
-              met_inclusion: { type: Type.BOOLEAN },
-              met_multilingual: { type: Type.BOOLEAN },
-              notes: { type: Type.STRING }
-            }
-          }
-        },
-        required: [
-          "title", "mode", "subject", "topic", "grade_level", "languages", 
-          "content", "inclusion_strategies", "glossary", "teacher_tips", 
-          "printable_markdown", "self_check"
-        ]
+          required: [
+            "title", "mode", "subject", "topic", "grade_level", "languages", 
+            "content", "inclusion_strategies", "glossary", "teacher_tips", 
+            "printable_markdown", "self_check"
+          ]
+        }
       }
-    }
-  });
+    });
 
-  const result = JSON.parse(response.text);
-  return result as OutputData;
+    if (!response.text) {
+      throw new Error("Empty AI response.");
+    }
+
+    try {
+      return JSON.parse(response.text) as OutputData;
+    } catch (e) {
+      console.error("JSON Parse Error:", response.text);
+      throw new Error("Invalid AI response format.");
+    }
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    throw error;
+  }
 }
