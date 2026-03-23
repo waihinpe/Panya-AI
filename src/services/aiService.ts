@@ -1,120 +1,182 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { InputData, OutputData, GroundingSource } from "../types";
+import { InputData, OutputData } from "../types";
 
-// Mock implementation for demonstration purposes
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
 export async function generateSpeech(text: string): Promise<string> {
-  console.log("Mocking speech for:", text);
-  // Return a tiny silent MP3 base64 string
+  // In a real app, this would call a TTS API. For now, we'll keep the mock or use Gemini TTS if available.
+  // Gemini 2.5 Flash Preview TTS is available, but let's stick to the content generation first.
+  console.log("Speech generation requested for:", text);
   return "data:audio/mp3;base64,SUQzBAAAAAABAFRYWFgAAAASAAADbWFqb3JfYnJhbmQAZGFzaABUWFhYAAAAEQAAA21pbm9yX3ZlcnNpb24AMABUWFhYAAAAHAAAA2NvbXBhdGlibGVfYnJhbmRzAGlzbzZtcDQyAFRTU0UAAAAPAAADTGF2ZjYwLjMuMTAwAAAAAAAAAAAAAAD/8MUAAAAAAAAAAAAAAAAAAAAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
 }
 
 export async function generateEducationalMaterial(input: InputData): Promise<OutputData> {
-  console.log("Mocking educational material for:", input);
+  const model = "gemini-3.1-pro-preview";
   
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  const prompt = `
+    You are an expert inclusive education specialist and curriculum designer. 
+    Create a highly detailed, comprehensive ${input.mode.replace('_', ' ')} for the following:
+    
+    Topic: ${input.topic}
+    Subject: ${input.subject}
+    Grade Level: ${input.grade_level}
+    Target Languages: ${input.languages.join(', ')}
+    Learning Objectives: ${input.learning_objectives}
+    Time Available: ${input.time_available_minutes} minutes
+    Constraints: ${input.constraints}
+    Adaptations Needed: ${input.adaptations || 'None specified'}
+    Sensitive Topics to Handle: ${input.sensitive_topics || 'None specified'}
 
-  const primaryLang = input.languages[0] || "English";
-  const otherLangs = input.languages.slice(1);
+    CRITICAL REQUIREMENTS:
+    1. The content must be EXTENSIVE and detailed, aiming for approximately 2 full pages of printed material.
+    2. Provide a deep dive into the topic with multiple sections (Introduction, Background, Core Content, Examples, Activities, Assessment).
+    3. Ensure the language is inclusive and accessible for the target grade level.
+    4. For the mirrored languages (${input.languages.slice(1).join(', ')}), provide high-quality, accurate translations of the core content.
+    5. Include specific inclusion strategies for learners with diverse needs (e.g., Autism, Dyslexia, Visual Impairment).
+    6. Provide a comprehensive glossary of key terms with definitions and translations.
+    7. Include practical teacher tips for implementation in low-resource settings.
+    8. Generate a 'printable_markdown' version that is beautifully formatted for a 2-page PDF export. 
+       This markdown MUST include ALL the information generated above:
+       - A clear title and metadata section.
+       - The full content in the primary language.
+       - The full content in all mirrored languages.
+       - The Inclusion Strategies section.
+       - The Glossary section.
+       - The Teacher Tips section.
+       - Use clear headers (H1, H2, H3), bold text, and lists to make it look professional.
+       - Aim for a length that naturally fills about 2 pages (approx 1000-1500 words total).
+  `;
 
-  const mockResult: OutputData = {
-    title: `${input.topic} - ${input.mode.replace('_', ' ').toUpperCase()}`,
-    mode: input.mode,
-    subject: input.subject,
-    topic: input.topic,
-    grade_level: input.grade_level,
-    languages: input.languages,
-    content: {
-      primary_language: {
-        title: `${input.topic} (${primaryLang})`,
-        sections: [
-          {
-            heading: "Introduction",
-            body: `This is a comprehensive guide about ${input.topic} designed for ${input.grade_level} students. We will explore the core concepts and practical applications.`
+  const response = await ai.models.generateContent({
+    model,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          mode: { type: Type.STRING },
+          subject: { type: Type.STRING },
+          topic: { type: Type.STRING },
+          grade_level: { type: Type.STRING },
+          languages: { type: Type.ARRAY, items: { type: Type.STRING } },
+          content: {
+            type: Type.OBJECT,
+            properties: {
+              primary_language: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  sections: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        heading: { type: Type.STRING },
+                        body: { type: Type.STRING }
+                      },
+                      required: ["heading", "body"]
+                    }
+                  }
+                },
+                required: ["title", "sections"]
+              },
+              mirrored_languages: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    language: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    sections: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          heading: { type: Type.STRING },
+                          body: { type: Type.STRING }
+                        },
+                        required: ["heading", "body"]
+                      }
+                    }
+                  },
+                  required: ["language", "title", "sections"]
+                }
+              }
+            },
+            required: ["primary_language", "mirrored_languages"]
           },
-          {
-            heading: "Key Concepts",
-            body: `1. Understanding the fundamentals of ${input.topic}.\n2. Exploring real-world examples.\n3. Interactive activities to reinforce learning.`
+          inclusion_strategies: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                need: { type: Type.STRING },
+                strategy: { type: Type.STRING }
+              },
+              required: ["need", "strategy"]
+            }
           },
-          {
-            heading: "Activity",
-            body: "Divide into small groups and discuss how this topic affects your daily life. Write down three observations."
+          glossary: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                term: { type: Type.STRING },
+                definition: { type: Type.STRING },
+                translation: { type: Type.STRING }
+              },
+              required: ["term", "definition"]
+            }
+          },
+          accessibility: {
+            type: Type.OBJECT,
+            properties: {
+              alt_text_suggestions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    element: { type: Type.STRING },
+                    alt_text: { type: Type.STRING }
+                  }
+                }
+              },
+              tts_guidelines: { type: Type.ARRAY, items: { type: Type.STRING } },
+              features: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    feature: { type: Type.STRING },
+                    description: { type: Type.STRING }
+                  }
+                }
+              }
+            }
+          },
+          teacher_tips: { type: Type.ARRAY, items: { type: Type.STRING } },
+          printable_markdown: { type: Type.STRING },
+          self_check: {
+            type: Type.OBJECT,
+            properties: {
+              met_schema: { type: Type.BOOLEAN },
+              met_inclusion: { type: Type.BOOLEAN },
+              met_multilingual: { type: Type.BOOLEAN },
+              notes: { type: Type.STRING }
+            }
           }
-        ]
-      },
-      mirrored_languages: otherLangs.map(lang => ({
-        language: lang,
-        title: `${input.topic} (${lang})`,
-        sections: [
-          {
-            heading: "Introduction (Translated)",
-            body: `[Mock Translation to ${lang}] This is a comprehensive guide about ${input.topic} designed for ${input.grade_level} students.`
-          },
-          {
-            heading: "Key Concepts (Translated)",
-            body: `[Mock Translation to ${lang}] 1. Understanding the fundamentals.\n2. Real-world examples.`
-          }
-        ]
-      }))
-    },
-    inclusion_strategies: [
-      {
-        need: "Autism Support",
-        strategy: "Use visual schedules and clear, predictable instructions. Provide a quiet space for focus."
-      },
-      {
-        need: "Learning Difficulties",
-        strategy: "Break tasks into smaller, manageable steps. Use graphic organizers to map out ideas."
-      }
-    ],
-    glossary: [
-      {
-        term: input.topic,
-        definition: `The main subject of our study, focusing on ${input.subject}.`,
-        translation: `[Translation of ${input.topic}]`
-      },
-      {
-        term: "Fundamental",
-        definition: "A basic principle, rule, or law that serves as the groundwork of a system.",
-        translation: "[Translation of Fundamental]"
-      }
-    ],
-    accessibility: {
-      alt_text_suggestions: [
-        {
-          element: "Main Diagram",
-          alt_text: `A visual representation showing the relationship between different parts of ${input.topic}.`
-        }
-      ],
-      tts_guidelines: [
-        "Read headings clearly with a slight pause after each.",
-        "Describe visual elements using the provided alt text.",
-        "Speak at a moderate pace, especially during translated sections."
-      ],
-      features: [
-        {
-          feature: "Simplified Language",
-          description: "Text is written at a readability level suitable for the target grade."
         },
-        {
-          feature: "Visual Scaffolding",
-          description: "Suggestions for diagrams and charts are included to support visual learners."
-        }
-      ]
-    },
-    teacher_tips: [
-      "Prepare printed copies of the worksheet beforehand.",
-      "Use local materials (stones, sticks, bottle caps) for the interactive activities.",
-      "Encourage students to help each other with translations if they are multilingual."
-    ],
-    printable_markdown: `# ${input.topic}\n\n## Introduction\nThis is a mock version of the educational material for **${input.topic}**. Since the API is currently disabled, this sample data shows how the final output would be structured and presented to teachers.\n\n### Key Points\n- Designed for ${input.grade_level}\n- Includes adaptations for diverse learners\n- Multilingual support for: ${input.languages.join(', ')}\n\n*Note: This is simulated data for demonstration purposes.*`,
-    self_check: {
-      met_schema: true,
-      met_inclusion: true,
-      met_multilingual: true,
-      notes: "Mock data generated successfully for demonstration."
+        required: [
+          "title", "mode", "subject", "topic", "grade_level", "languages", 
+          "content", "inclusion_strategies", "glossary", "teacher_tips", 
+          "printable_markdown", "self_check"
+        ]
+      }
     }
-  };
+  });
 
-  return mockResult;
+  const result = JSON.parse(response.text);
+  return result as OutputData;
 }

@@ -116,6 +116,17 @@ const PDF_TEMPLATES = {
     headerBg: '#ffffff',
     borderRadius: '0px',
     spacing: '1.4em'
+  },
+  professional: {
+    name: 'Professional',
+    fontFamily: "'Inter', sans-serif",
+    primaryColor: '#0f172a',
+    accentColor: '#334155',
+    backgroundColor: '#ffffff',
+    textColor: '#1e293b',
+    headerBg: '#f1f5f9',
+    borderRadius: '8px',
+    spacing: '1.6em'
   }
 };
 
@@ -206,6 +217,8 @@ export default function App() {
     theme: 'modern',
     includeHeader: true,
     includeFooter: true,
+    includeCoverPage: true,
+    includeTableOfContents: true,
     showOptions: false
   });
 
@@ -509,6 +522,45 @@ export default function App() {
             position: relative;
             background: ${theme.backgroundColor};
             min-height: ${isLandscape ? '210mm' : '297mm'};
+            box-sizing: border-box;
+          }
+
+          .cover-page {
+            display: ${pdfOptions.includeCoverPage ? 'flex' : 'none'};
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            height: ${isLandscape ? '210mm' : '297mm'};
+            padding: 40mm 20mm;
+            background: ${theme.primaryColor};
+            color: white;
+            page-break-after: always;
+          }
+
+          .cover-title {
+            font-size: 48pt;
+            font-weight: 800;
+            margin-bottom: 20px;
+            line-height: 1.1;
+          }
+
+          .cover-subtitle {
+            font-size: 18pt;
+            opacity: 0.9;
+            margin-bottom: 60px;
+          }
+
+          .cover-meta {
+            font-size: 12pt;
+            opacity: 0.8;
+            margin-top: auto;
+            border-top: 1px solid rgba(255,255,255,0.3);
+            padding-top: 30px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
           }
           
           .pdf-header {
@@ -560,6 +612,7 @@ export default function App() {
             background: ${theme.headerBg};
             padding-top: 12px;
             padding-bottom: 12px;
+            page-break-after: avoid;
           }
           
           h3 { 
@@ -568,6 +621,7 @@ export default function App() {
             margin-top: 1.6em; 
             margin-bottom: 0.6em; 
             color: ${theme.accentColor};
+            page-break-after: avoid;
           }
           
           p { margin-bottom: ${theme.spacing}; }
@@ -583,6 +637,7 @@ export default function App() {
             color: ${theme.textColor};
             font-style: italic;
             border-radius: 0 ${theme.borderRadius} ${theme.borderRadius} 0;
+            page-break-inside: avoid;
           }
           
           pre {
@@ -595,6 +650,7 @@ export default function App() {
             margin: 2em 0;
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            page-break-inside: avoid;
           }
           
           code {
@@ -615,6 +671,7 @@ export default function App() {
             overflow: hidden;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
             border: 1px solid #e2e8f0;
+            page-break-inside: avoid;
           }
           
           th, td {
@@ -649,6 +706,32 @@ export default function App() {
             letter-spacing: 0.05em;
           }
 
+          .toc-section {
+            display: ${pdfOptions.includeTableOfContents ? 'block' : 'none'};
+            margin-bottom: 40px;
+            padding: 30px;
+            background: ${theme.headerBg};
+            border-radius: ${theme.borderRadius};
+            page-break-after: always;
+          }
+
+          .toc-title {
+            font-size: 1.5em;
+            font-weight: 800;
+            margin-bottom: 20px;
+            color: ${theme.primaryColor};
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+          }
+
+          .toc-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            border-bottom: 1px dotted #cbd5e1;
+            padding-bottom: 5px;
+          }
+
           /* Page break handling */
           .page-break {
             page-break-before: always;
@@ -665,9 +748,34 @@ export default function App() {
       const rawHtml = await marked.parse(result.printable_markdown);
       const cleanHtml = DOMPurify.sanitize(rawHtml);
       
+      // Extract headings for TOC
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = cleanHtml;
+      const headings = Array.from(tempDiv.querySelectorAll('h2')).map(h => h.textContent);
+
       element.innerHTML = `
         ${styles}
+        <div class="cover-page">
+          <div class="cover-title">${result.title}</div>
+          <div class="cover-subtitle">${result.mode.replace('_', ' ').toUpperCase()}</div>
+          <div class="cover-meta">
+            <div><strong>Subject:</strong> ${result.subject}</div>
+            <div><strong>Grade:</strong> ${result.grade_level}</div>
+            <div><strong>Topic:</strong> ${result.topic}</div>
+            <div><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
+          </div>
+        </div>
+
         <div class="pdf-page">
+          <div class="toc-section">
+            <div class="toc-title">Table of Contents</div>
+            ${headings.map(h => `
+              <div class="toc-item">
+                <span>${h}</span>
+              </div>
+            `).join('')}
+          </div>
+
           <div class="pdf-header">
             <span class="pdf-header-title">${result.title}</span>
             <span class="pdf-header-brand">Panya AI Assistant</span>
@@ -701,15 +809,15 @@ export default function App() {
         return Math.round((widthMm / mmToInch) * dpi);
       };
 
-      // Wait for rendering - reduced from 500ms for faster generation
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       const opt = {
         margin: 0,
         filename: `${result.title.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.95 }, // Slightly reduced quality for speed
+        image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { 
-          scale: 1.5, // Reduced from 2 for significantly faster rendering
+          scale: 2,
           useCORS: true, 
           logging: false,
           windowWidth: getWindowWidth()
@@ -719,19 +827,23 @@ export default function App() {
           format: paperSize, 
           orientation: pdfOptions.orientation as 'portrait' | 'landscape',
           compress: true,
-          precision: 2 // Reduced from 16 for faster processing
+          precision: 2
         },
         pagebreak: { mode: ['avoid-all' as const, 'css' as const, 'legacy' as const] }
       };
       
       // Generate PDF with page numbers
-      const worker = html2pdf().set(opt).from(element).toPdf().get('pdf').then((pdf: any) => {
+      const worker = html2pdf().set(opt).from(element).toPdf().get('pdf');
+      
+      await (worker as any).then((pdf: any) => {
         const totalPages = pdf.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
+        const startPage = pdfOptions.includeCoverPage ? 2 : 1;
+        
+        for (let i = startPage; i <= totalPages; i++) {
           pdf.setPage(i);
           pdf.setFontSize(9);
           pdf.setTextColor(150);
-          const pageText = `Page ${i} of ${totalPages}`;
+          const pageText = `Page ${pdfOptions.includeCoverPage ? i - 1 : i} of ${pdfOptions.includeCoverPage ? totalPages - 1 : totalPages}`;
           const x = pdf.internal.pageSize.getWidth() / 2;
           const y = pdf.internal.pageSize.getHeight() - 10;
           pdf.text(pageText, x, y, { align: 'center' });
@@ -850,17 +962,17 @@ export default function App() {
         </div>
       `;
 
-      // Wait for rendering - reduced wait time for faster generation
-      await new Promise(resolve => setTimeout(resolve, 100));
-
+      // Wait for rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const opt = {
         margin: 0,
         filename: `Draft_${formData.topic.replace(/\s+/g, '_') || 'Material'}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.95 },
-        html2canvas: { scale: 1.5, useCORS: true, windowWidth: 800 },
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, windowWidth: 800 },
         jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const, compress: true, precision: 2 }
       };
-
+      
       await html2pdf().set(opt).from(element).save();
       toast.innerHTML = `
         <svg class="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1372,11 +1484,12 @@ export default function App() {
                                   <div className="space-y-6">
                                     <div>
                                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Visual Theme</label>
-                                      <div className="grid grid-cols-3 gap-2">
+                                      <div className="grid grid-cols-2 gap-2">
                                         {[
                                           { label: 'Modern', value: 'modern' },
                                           { label: 'Classic', value: 'classic' },
-                                          { label: 'Academic', value: 'academic' }
+                                          { label: 'Academic', value: 'academic' },
+                                          { label: 'Professional', value: 'professional' }
                                         ].map(t => (
                                           <button
                                             key={t.value}
@@ -1392,6 +1505,27 @@ export default function App() {
                                           </button>
                                         ))}
                                       </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <label className="flex items-center gap-3 p-3 rounded-2xl border-2 border-slate-100 hover:border-slate-200 cursor-pointer transition-all">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={pdfOptions.includeCoverPage}
+                                          onChange={(e) => setPdfOptions(prev => ({ ...prev, includeCoverPage: e.target.checked }))}
+                                          className="w-4 h-4 rounded border-slate-300 text-brand focus:ring-brand"
+                                        />
+                                        <span className="text-[10px] font-bold uppercase text-slate-600">Cover Page</span>
+                                      </label>
+                                      <label className="flex items-center gap-3 p-3 rounded-2xl border-2 border-slate-100 hover:border-slate-200 cursor-pointer transition-all">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={pdfOptions.includeTableOfContents}
+                                          onChange={(e) => setPdfOptions(prev => ({ ...prev, includeTableOfContents: e.target.checked }))}
+                                          className="w-4 h-4 rounded border-slate-300 text-brand focus:ring-brand"
+                                        />
+                                        <span className="text-[10px] font-bold uppercase text-slate-600">Table of Contents</span>
+                                      </label>
                                     </div>
 
                                     <div>
