@@ -2,9 +2,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { InputData, OutputData, GroundingSource } from "../types";
 
 const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "undefined" || apiKey === "MY_GEMINI_API_KEY") {
-    throw new Error("Gemini API key is missing. Please ensure GEMINI_API_KEY is set in your environment variables via the Secrets panel in AI Studio.");
+  // In AI Studio, the key is often injected as process.env.GEMINI_API_KEY.
+  // We also check common fallbacks used in different environments.
+  const apiKey = 
+    process.env.GEMINI_API_KEY || 
+    (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+    (process.env as any).API_KEY;
+
+  if (!apiKey || apiKey === "undefined" || apiKey === "MY_GEMINI_API_KEY" || apiKey === "") {
+    throw new Error("Gemini API key is missing. To fix this, click the 'Settings' (gear) icon in the bottom left of AI Studio, go to 'Secrets', and add 'GEMINI_API_KEY' with your key from aistudio.google.com/app/apikey.");
   }
   return new GoogleGenAI({ apiKey });
 };
